@@ -28,6 +28,7 @@ import static net.openid.appauth.TestValues.getTestAuthResponseBuilder;
 import static net.openid.appauth.TestValues.getTestRegistrationResponse;
 import static net.openid.appauth.TestValues.getTestRegistrationResponseBuilder;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isNull;
 import static org.mockito.Mockito.mock;
@@ -36,6 +37,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 
 import java.util.Collections;
+import org.json.JSONException;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -419,6 +421,7 @@ public class AuthStateTest {
         mClock.currentTime.set(ONE_SECOND);
         state.performActionWithFreshTokens(
                 service,
+                NoClientAuthentication.INSTANCE,
                 Collections.<String, String>emptyMap(),
                 mClock,
                 action);
@@ -456,6 +459,7 @@ public class AuthStateTest {
         mClock.currentTime.set(TWO_MINUTES - AuthState.EXPIRY_TIME_TOLERANCE_MS + ONE_SECOND);
         state.performActionWithFreshTokens(
                 service,
+                NoClientAuthentication.INSTANCE,
                 Collections.<String, String>emptyMap(),
                 mClock,
                 action);
@@ -466,6 +470,7 @@ public class AuthStateTest {
                 ArgumentCaptor.forClass(AuthorizationService.TokenResponseCallback.class);
         verify(service, times(1)).performTokenRequest(
                 requestCaptor.capture(),
+                any(ClientAuthentication.class),
                 callbackCaptor.capture());
 
         assertThat(requestCaptor.getValue().refreshToken).isEqualTo(tokenResp.refreshToken);
@@ -535,6 +540,32 @@ public class AuthStateTest {
         assertThat(restoredState.getClientSecret()).isEqualTo(state.getClientSecret());
         assertThat(restoredState.hasClientSecretExpired(mClock))
                 .isEqualTo(state.hasClientSecretExpired(mClock));
+    }
+
+    @Test
+    public void testJsonSerialization_doesNotChange() throws Exception {
+        AuthorizationRequest authReq = getMinimalAuthRequestBuilder("id_token token code")
+            .setScopes(
+                AuthorizationRequest.Scope.OPENID,
+                AuthorizationRequest.Scope.EMAIL,
+                AuthorizationRequest.Scope.PROFILE)
+            .build();
+        AuthorizationResponse authResp = new AuthorizationResponse.Builder(authReq)
+            .setAccessToken(TEST_ACCESS_TOKEN)
+            .setIdToken(TEST_ID_TOKEN)
+            .setAuthorizationCode(TEST_AUTH_CODE)
+            .setState(authReq.state)
+            .build();
+
+        TokenResponse tokenResp = getTestAuthCodeExchangeResponse();
+        RegistrationResponse regResp = getTestRegistrationResponse();
+        AuthState state = new AuthState(authResp, tokenResp, null);
+        state.update(regResp);
+
+        String firstOutput = state.jsonSerializeString();
+        String secondOutput = AuthState.jsonDeserialize(firstOutput).jsonSerializeString();
+
+        assertThat(secondOutput).isEqualTo(firstOutput);
     }
 
     @Test

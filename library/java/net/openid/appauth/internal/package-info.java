@@ -13,7 +13,7 @@
  */
 
 /**
- * App which demonstrates the use of the AppAuth library to authenticate a user with an IDP
- * configured in res/raw/auth_config.json.
+ * Internal data types and utility classes for AppAuth. The contents of this package are *NOT* part
+ * of the public API, and are subject to change without notice.
  */
-package net.openid.appauthdemo;
+package net.openid.appauth.internal;

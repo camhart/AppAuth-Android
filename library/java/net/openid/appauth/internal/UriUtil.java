@@ -12,23 +12,31 @@
  * limitations under the License.
  */
 
-package net.openid.appauth;
+package net.openid.appauth.internal;
 
 import android.net.Uri;
+import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.customtabs.CustomTabsService;
+import android.support.v4.util.Pair;
 import android.text.TextUtils;
 
+import net.openid.appauth.Preconditions;
+
 import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Utility methods for extracting parameters from Uri objects.
  */
-class UriUtil {
+public final class UriUtil {
 
     private UriUtil() {
         throw new IllegalStateException("This type is not intended to be instantiated");
@@ -66,6 +74,27 @@ class UriUtil {
         return null;
     }
 
+    public static List<Bundle> toCustomTabUriBundle(Uri[] uris, int startIndex) {
+        Preconditions.checkArgument(startIndex >= 0, "startIndex must be positive");
+        if (uris == null || uris.length <= startIndex) {
+            return Collections.emptyList();
+        }
+
+        List<Bundle> uriBundles = new ArrayList<>(uris.length - startIndex);
+        for (int i = startIndex; i < uris.length; i++) {
+            if (uris[i] == null) {
+                Logger.warn("Null URI in possibleUris list - ignoring");
+                continue;
+            }
+
+            Bundle uriBundle = new Bundle();
+            uriBundle.putParcelable(CustomTabsService.KEY_URL, uris[i]);
+            uriBundles.add(uriBundle);
+        }
+
+        return uriBundles;
+    }
+
     public static String formUrlEncode(Map<String, String> parameters) {
         if (parameters == null) {
             return "";
@@ -81,5 +110,39 @@ class UriUtil {
             }
         }
         return TextUtils.join("&", queryParts);
+    }
+
+    public static List<Pair<String, String>> formUrlDecode(String encoded) {
+        if (TextUtils.isEmpty(encoded)) {
+            return Collections.emptyList();
+        }
+
+        String[] parts = encoded.split("&");
+        List<Pair<String, String>> params = new ArrayList<>();
+
+        for (String part : parts) {
+            String[] paramAndValue = part.split("=");
+            String param = paramAndValue[0];
+            String encodedValue = paramAndValue[1];
+
+            try {
+                params.add(Pair.create(param, URLDecoder.decode(encodedValue, "utf-8")));
+            } catch (UnsupportedEncodingException ex) {
+                Logger.error("Unable to decode parameter, ignoring", ex);
+            }
+        }
+
+        return params;
+    }
+
+    public static Map<String, String> formUrlDecodeUnique(String encoded) {
+        List<Pair<String, String>> params = UriUtil.formUrlDecode(encoded);
+        Map<String, String> uniqueParams = new HashMap<>();
+
+        for (Pair<String, String> param : params) {
+            uniqueParams.put(param.first, param.second);
+        }
+
+        return uniqueParams;
     }
 }
